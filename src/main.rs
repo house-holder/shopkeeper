@@ -1,27 +1,21 @@
-#![allow(dead_code)]
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{self, Write};
 
-/* weight constants
-28.349523125 //grams per oz
-453.59237    // grams per lb
-*/
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+struct Grams(u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-struct Weight(f64);
-
-// enum Weight {
-//     Pounds(u32),
-//     Ounces(u32),
-//     Grams(u32),
-// }
-//
-impl Weight {
-    fn to_grams(&self) -> u32 {
-        match *self {
-            Weight::Grams(g) => g,
-            Weight::Ounces(oz) => oz * 28,
-            Weight::Pounds(lb) => lb * 453,
+impl fmt::Display for Grams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let grams = self.0;
+        if self.0 >= 908 {
+            let pounds = (grams as f64 / 453.59237).ceil() as u32;
+            write!(f, "{pounds}lb")
+        } else if self.0 >= 57 {
+            let ounces = (grams as f64 / 28.349523125).ceil() as u32;
+            write!(f, "{ounces}oz")
+        } else {
+            write!(f, "{grams}g")
         }
     }
 }
@@ -30,7 +24,7 @@ struct Item {
     name: String,
     id: u32,
     cost_cents: u32,
-    weight: Weight,
+    weight: Grams,
 }
 
 fn price_str(cost: u32) -> String {
@@ -45,15 +39,17 @@ enum OrderStatus {
     Returned { reason: String },
 }
 
+#[derive(Debug)]
 struct OrderLine {
     item_id: u32,
     qty: u32,
 }
 
 struct Order {
+    id: u32,
     status: OrderStatus,
     cost_cents: u32,
-    shipped_weight: Weight,
+    shipped_weight: Grams,
     items: Vec<OrderLine>,
 }
 
@@ -82,7 +78,7 @@ impl Store {
         println!("Creating new stock item...");
         let input_name = read_str("  Item name: ")?;
         let input_cents = retry_read_u32("  Item price: ")?;
-        let input_grams = Weight::Grams(retry_read_u32("  Item weight (g): ")?);
+        let input_grams = Grams(retry_read_u32("  Item weight (g): ")?);
         let input_qty = retry_read_u32("  Quantity: ")?;
 
         let new_item = Item {
@@ -113,24 +109,44 @@ impl Store {
         Ok(*qty)
     }
 
-    fn build_order(&mut self) -> io::Result<Vec<OrderLine>> {
+    fn build_order(&mut self) -> io::Result<Option<Vec<OrderLine>>> {
         let mut order_qty: HashMap<u32, u32> = HashMap::new();
 
         loop {
             self.display();
-
             let mut ids: Vec<u32> = self.inventory.keys().copied().collect();
             ids.sort_unstable();
 
-            let cmd = read_str("  > Select row # ('q' to finish): ")?;
-            if cmd == "q" {
-                break;
-            }
+            let cmd = read_str("  > Select row # ('f' to finish, 'q' to quit): ")?;
+            match cmd.as_str() {
+                "f" => {
+                    if order_qty.is_empty() {
+                        eprintln!("Unable to complete order, no items have been added.");
+                        continue;
+                    }
 
+                    let lines: Vec<OrderLine> = order_qty
+                        .into_iter()
+                        .map(|(item_id, qty)| OrderLine { item_id, qty })
+                        .collect();
+
+                    return Ok(Some(lines));
+                }
+                "q" => {
+                    // canceling: restore inventory from order_qty
+                    for (item_id, qty) in order_qty.iter() {
+                        let _ = self.adjust_stock(*item_id, *qty as i32);
+                    }
+                    return Ok(None);
+                }
+                _ => {
+                    // row number
+                }
+            }
             let row: usize = match cmd.parse() {
                 Ok(n) => n,
                 Err(_) => {
-                    eprintln!("Enter a row number or 'q'.");
+                    eprintln!("Invalid input.");
                     continue;
                 }
             };
@@ -149,22 +165,35 @@ impl Store {
                 }
                 Err(msg) => {
                     eprintln!("{msg}");
-                    continue;
                 }
             }
         }
-
-        let mut lines: Vec<OrderLine> = order_qty
-            .into_iter()
-            .map(|(item_id, qty)| OrderLine { item_id, qty })
-            .collect();
-        lines.sort_by_key(|l| l.item_id);
-
-        Ok(lines)
     }
 
-    fn commit_order(&mut self, _lines: Vec<OrderLine>) -> Order {
-        todo!("commit_order: compute totals, assign id, push to self.orders")
+    fn commit_order(&mut self, lines: Vec<OrderLine>) -> Order {
+        let mut order_cost: u64 = 0;
+        let mut order_grams: u64 = 0;
+        for l in &lines {
+            let (item, _avail) = self.inventory.get(&l.item_id).expect("Line item not found");
+            order_cost += (item.cost_cents as u64) * (l.qty as u64);
+            order_grams += (item.weight.0 as u64) * (l.qty as u64);
+        }
+        let new_order = Order {
+            id: self.next_order_id,
+            status: OrderStatus::New {
+                date_created: "12DEC2025".to_string(),
+            },
+            cost_cents: order_cost.try_into().expect("Failed to convert order_cost"),
+            shipped_weight: Grams(
+                order_grams
+                    .try_into()
+                    .expect("Failed to convert order_grams"),
+            ),
+            items: lines,
+        };
+        self.next_order_id += 1;
+
+        new_order
     }
 
     fn display(&self) {
@@ -224,30 +253,29 @@ fn retry_read_u32(prompt: &str) -> io::Result<u32> {
 fn main() -> io::Result<()> {
     let mut store = Store::new();
 
-    // store.create_stock()?;
     let item1 = Item {
         name: "36\" cyl packing kit".to_string(),
         id: 308113,
         cost_cents: 2299,
-        weight: Weight::Grams(81),
+        weight: Grams(81),
     };
     let item2 = Item {
         name: "36\" cylinder housing".to_string(),
         id: 389120,
         cost_cents: 83500,
-        weight: Weight::Grams(12613),
+        weight: Grams(12613),
     };
     let item3 = Item {
         name: "Flat washer (5/16\", stainless)".to_string(),
         id: 210001,
         cost_cents: 8,
-        weight: Weight::Grams(2),
+        weight: Grams(2),
     };
     let item4 = Item {
         name: "Bearing - conical, 0.875\"ID".to_string(),
         id: 992871,
         cost_cents: 3895,
-        weight: Weight::Grams(925),
+        weight: Grams(925),
     };
 
     store.stock(item1, 12);
@@ -256,6 +284,22 @@ fn main() -> io::Result<()> {
     store.stock(item4, 2);
 
     store.display();
+
+    if let Some(lines) = store.build_order()? {
+        let order = store.commit_order(lines);
+        store.orders.push(order);
+    } else {
+        eprintln!("Order not completed.");
+    }
+
+    for o in &store.orders {
+        println!(
+            "order #{} total=${} ship={}",
+            o.id,
+            price_str(o.cost_cents),
+            o.shipped_weight
+        );
+    }
 
     Ok(())
 }
