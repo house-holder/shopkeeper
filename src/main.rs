@@ -8,7 +8,9 @@ struct Item {
     weight_lbs: u32,
 }
 
-impl Item {}
+fn price_str(cost: u32) -> String {
+    format!("{}.{:02}", cost / 100, cost % 100)
+}
 
 enum OrderStatus {
     New { date_created: String },
@@ -69,10 +71,10 @@ impl Store {
     }
 
     fn display(&self) {
-        let border: String = "-".repeat(76);
+        let border: String = "-".repeat(72);
         println!(
-            "{border}\n {:8}{:40}{:8}{:6}\n{border}",
-            "ID", "Description", "Price", "Qty",
+            "{border}\n {:6} | {:40} |  {:9} | {:5}\n{border}",
+            "ID#", "Description", "Unit Cost", "Avail",
         );
 
         let mut items: Vec<_> = self.inventory.iter().collect();
@@ -80,10 +82,9 @@ impl Store {
 
         for (id, (item, qty)) in items {
             println!(
-                " {id:06}  {:34} ${:6}.{:02}  {qty:5}",
+                " {id:06} | {:40} | ${:>9} | {qty:5}",
                 item.name,
-                item.cost_cents / 100,
-                item.cost_cents % 100
+                price_str(item.cost_cents),
             );
         }
     }
@@ -127,7 +128,37 @@ fn main() -> io::Result<()> {
     println!("Inventory System Running.");
     let mut store = Store::new();
 
-    store.create_stock()?;
+    // store.create_stock()?;
+    let item1 = Item {
+        name: "36\" cyl packing kit".to_string(),
+        id: 308113,
+        cost_cents: 2299,
+        weight_lbs: 3,
+    };
+    let item2 = Item {
+        name: "36\" cylinder housing".to_string(),
+        id: 389120,
+        cost_cents: 83500,
+        weight_lbs: 18,
+    };
+    let item3 = Item {
+        name: "Flat washer (5/16\", stainless)".to_string(),
+        id: 210001,
+        cost_cents: 22,
+        weight_lbs: 1,
+    };
+    let item4 = Item {
+        name: "DH18C Crate Engine".to_string(),
+        id: 992871,
+        cost_cents: 1238900,
+        weight_lbs: 850,
+    };
+
+    store.stock(item1, 12);
+    store.stock(item2, 8);
+    store.stock(item3, 203);
+    store.stock(item4, 2);
+
     store.display();
 
     Ok(())
