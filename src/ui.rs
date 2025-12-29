@@ -1,8 +1,9 @@
-use std::io::{self, Write};
+use std::io::{self, Write, Result};
+use std::collections::HashMap;
 
 use crate::domain::{Cents, Grams, Order, OrderLine, Store};
 
-fn read_str(prompt: &str) -> io::Result<String> {
+fn read_str(prompt: &str) -> Result<String> {
     print!("{prompt}");
     io::stdout().flush()?;
 
@@ -11,13 +12,13 @@ fn read_str(prompt: &str) -> io::Result<String> {
     Ok(input.trim().to_string())
 }
 
-fn read_u32(prompt: &str) -> io::Result<u32> {
+fn read_u32(prompt: &str) -> Result<u32> {
     let s = read_str(prompt)?;
     s.parse::<u32>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
 }
 
-fn retry_read_u32(prompt: &str) -> io::Result<u32> {
+fn retry_read_u32(prompt: &str) -> Result<u32> {
     loop {
         match read_u32(prompt) {
             Ok(n) => return Ok(n),
@@ -29,7 +30,7 @@ fn retry_read_u32(prompt: &str) -> io::Result<u32> {
     }
 }
 
-pub fn create_stock(store: &mut Store) -> io::Result<()> {
+pub fn create_stock(store: &mut Store) -> Result<()> {
     println!("Creating new stock item...");
     let input_name = read_str("  Item name: ")?;
     let input_cents = retry_read_u32("  Item price (cents): ")?;
@@ -57,22 +58,26 @@ pub fn display(store: &Store) {
         let (item, qty) = store
             .inventory_get(id)
             .expect("inventory id list out of sync");
-        println!(" {id:06} | {:40} | ${:>9} | {qty:5}", item.name, format!("{}", item.cost));
+        println!(
+            " {id:06} | {:40} | ${:>9} | {qty:5}",
+            item.name,
+            format!("{}", item.cost),
+        );
     }
 }
 
-pub fn build_order(store: &mut Store) -> io::Result<Option<Vec<OrderLine>>> {
-    let mut order_qty: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+pub fn build_order(store: &mut Store) -> Result<Option<Vec<OrderLine>>> {
+    let mut order_qty: HashMap<u32, u32> = HashMap::new();
 
     loop {
         display(store);
         let ids = store.inventory_ids_sorted();
 
-        let cmd = read_str("  > Select row # ('f' to finish, 'q' to quit): ")?;
+        let cmd = read_str("  > Select row ('f' to finish, 'q' to quit): ")?;
         match cmd.as_str() {
             "f" => {
                 if order_qty.is_empty() {
-                    eprintln!("Unable to complete order, no items have been added.");
+                    eprintln!("Unable to complete order, no items added.");
                     continue;
                 }
 
