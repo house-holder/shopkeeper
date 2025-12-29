@@ -283,8 +283,6 @@ fn main() -> io::Result<()> {
     store.stock(item3, 203);
     store.stock(item4, 2);
 
-    store.display();
-
     if let Some(lines) = store.build_order()? {
         let order = store.commit_order(lines);
         store.orders.push(order);
