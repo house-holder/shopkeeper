@@ -3,6 +3,22 @@ use std::fmt;
 use std::io::{self, Write};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+struct Cents(u32);
+
+impl Cents {
+    fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for Cents {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let cents = self.0;
+        write!(f, "{}.{:02}", cents / 100, cents % 100)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 struct Grams(u32);
 
 impl fmt::Display for Grams {
@@ -23,12 +39,8 @@ impl fmt::Display for Grams {
 struct Item {
     name: String,
     id: u32,
-    cost_cents: u32,
+    cost: Cents,
     weight: Grams,
-}
-
-fn price_str(cost: u32) -> String {
-    format!("{}.{:02}", cost / 100, cost % 100)
 }
 
 // enum OrderStatus {
@@ -48,8 +60,8 @@ struct OrderLine {
 struct Order {
     id: u32,
     // status: OrderStatus,
-    cost_cents: u32,
-    shipped_weight: Grams,
+    cost: Cents,
+    ship_weight: Grams,
     items: Vec<OrderLine>,
 }
 
@@ -84,7 +96,7 @@ impl Store {
         let new_item = Item {
             name: input_name,
             id: self.next_item_id,
-            cost_cents: input_cents,
+            cost: Cents(input_cents),
             weight: input_grams,
         };
 
@@ -175,16 +187,18 @@ impl Store {
         let mut order_grams: u64 = 0;
         for l in &lines {
             let (item, _avail) = self.inventory.get(&l.item_id).expect("Line item not found");
-            order_cost += (item.cost_cents as u64) * (l.qty as u64);
-            order_grams += (item.weight.0 as u64) * (l.qty as u64);
+            let qty_u64 = u64::from(l.qty);
+            order_cost += u64::from(item.cost.as_u32()) * qty_u64;
+            order_grams += u64::from(item.weight.0) * qty_u64;
         }
+        let cost_u32: u32 = order_cost.try_into().expect("Failed to convert order_cost");
         let new_order = Order {
             id: self.next_order_id,
             // status: OrderStatus::New {
             //     date_created: "12DEC2025".to_string(),
             // },
-            cost_cents: order_cost.try_into().expect("Failed to convert order_cost"),
-            shipped_weight: Grams(
+            cost: Cents(cost_u32),
+            ship_weight: Grams(
                 order_grams
                     .try_into()
                     .expect("Failed to convert order_grams"),
@@ -207,11 +221,7 @@ impl Store {
         items.sort_by_key(|(id, _)| *id);
 
         for (id, (item, qty)) in items {
-            println!(
-                " {id:06} | {:40} | ${:>9} | {qty:5}",
-                item.name,
-                price_str(item.cost_cents),
-            );
+            println!(" {id:06} | {:40} | ${:>9} | {qty:5}", item.name, item.cost);
         }
     }
 }
@@ -256,25 +266,25 @@ fn main() -> io::Result<()> {
     let item1 = Item {
         name: "36\" cyl packing kit".to_string(),
         id: 308113,
-        cost_cents: 2299,
+        cost: Cents(2299),
         weight: Grams(81),
     };
     let item2 = Item {
         name: "36\" cylinder housing".to_string(),
         id: 389120,
-        cost_cents: 83500,
+        cost: Cents(83500),
         weight: Grams(12613),
     };
     let item3 = Item {
         name: "Flat washer (5/16\", stainless)".to_string(),
         id: 210001,
-        cost_cents: 8,
+        cost: Cents(8),
         weight: Grams(2),
     };
     let item4 = Item {
         name: "Bearing - conical, 0.875\"ID".to_string(),
         id: 992871,
-        cost_cents: 3895,
+        cost: Cents(3895),
         weight: Grams(925),
     };
 
@@ -297,18 +307,10 @@ fn main() -> io::Result<()> {
                 .inventory
                 .get(&l.item_id)
                 .expect("Item is missing from inventory");
-            println!(
-                "  x{}  {}  ${}",
-                l.qty,
-                item.name,
-                price_str(item.cost_cents * l.qty)
-            );
+            let line_total = Cents(item.cost.as_u32() * l.qty);
+            println!("  x{}  {}  ${}", l.qty, item.name, line_total);
         }
-        println!(
-            "total=${} ship={}",
-            price_str(order.cost_cents),
-            order.shipped_weight
-        );
+        println!("total=${} ship={}", order.cost, order.ship_weight);
 
         store.orders.push(order);
     } else {
@@ -316,12 +318,7 @@ fn main() -> io::Result<()> {
     }
 
     for o in &store.orders {
-        println!(
-            "order #{} total=${} ship={}",
-            o.id,
-            price_str(o.cost_cents),
-            o.shipped_weight
-        );
+        println!("order #{} total=${} ship={}", o.id, o.cost, o.ship_weight);
     }
 
     Ok(())
