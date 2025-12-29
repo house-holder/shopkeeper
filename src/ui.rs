@@ -49,7 +49,7 @@ pub fn create_stock(store: &mut Store) -> io::Result<()> {
 pub fn display(store: &Store) {
     let border: String = "-".repeat(72);
     println!(
-        "{border}\n {:6} | {:40} |  {:9} | {:5}\n{border}",
+        "{border}\n {:6} | {:40} | {:10} | {:5}\n{border}",
         "ID#", "Description", "Unit Cost", "Avail",
     );
 
@@ -57,7 +57,7 @@ pub fn display(store: &Store) {
         let (item, qty) = store
             .inventory_get(id)
             .expect("inventory id list out of sync");
-        println!(" {id:06} | {:40} | ${:>9} | {qty:5}", item.name, item.cost);
+        println!(" {id:06} | {:40} | ${:>9} | {qty:5}", item.name, format!("{}", item.cost));
     }
 }
 
