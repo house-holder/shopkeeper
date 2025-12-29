@@ -1,0 +1,6 @@
+id,name,cost_cents,weight_grams,qty,part_number,long_description
+990001,"test item 1",99,14,510,"","long item description for testing purposes. can be used to expand info on item."
+990002,"test item 2",499,69,391,"","long item description for testing purposes. can be used to expand info on item."
+990003,"test item 3",4000,11450,120,"RA-01837","long item description for testing purposes. can be used to expand info on item."
+990004,"test item 4",12490,3271,80,"","long item description for testing purposes. can be used to expand info on item."
+
