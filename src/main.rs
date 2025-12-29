@@ -31,13 +31,13 @@ fn price_str(cost: u32) -> String {
     format!("{}.{:02}", cost / 100, cost % 100)
 }
 
-enum OrderStatus {
-    New { date_created: String },
-    Shipped { tracking: String },
-    Completed { date_delivered: String },
-    Canceled { reason: String },
-    Returned { reason: String },
-}
+// enum OrderStatus {
+//     New { date_created: String },
+//     Shipped { tracking: String },
+//     Completed { date_delivered: String },
+//     Canceled { reason: String },
+//     Returned { reason: String },
+// }
 
 #[derive(Debug)]
 struct OrderLine {
@@ -47,7 +47,7 @@ struct OrderLine {
 
 struct Order {
     id: u32,
-    status: OrderStatus,
+    // status: OrderStatus,
     cost_cents: u32,
     shipped_weight: Grams,
     items: Vec<OrderLine>,
@@ -180,9 +180,9 @@ impl Store {
         }
         let new_order = Order {
             id: self.next_order_id,
-            status: OrderStatus::New {
-                date_created: "12DEC2025".to_string(),
-            },
+            // status: OrderStatus::New {
+            //     date_created: "12DEC2025".to_string(),
+            // },
             cost_cents: order_cost.try_into().expect("Failed to convert order_cost"),
             shipped_weight: Grams(
                 order_grams
@@ -283,8 +283,33 @@ fn main() -> io::Result<()> {
     store.stock(item3, 203);
     store.stock(item4, 2);
 
+    while store.inventory.len() < 4 {
+        while let Err(e) = store.create_stock() {
+            eprintln!("create_stock failed: {e}");
+        }
+    }
+
     if let Some(lines) = store.build_order()? {
         let order = store.commit_order(lines);
+
+        for l in &order.items {
+            let (item, _avail) = store
+                .inventory
+                .get(&l.item_id)
+                .expect("Item is missing from inventory");
+            println!(
+                "  x{}  {}  ${}",
+                l.qty,
+                item.name,
+                price_str(item.cost_cents * l.qty)
+            );
+        }
+        println!(
+            "total=${} ship={}",
+            price_str(order.cost_cents),
+            order.shipped_weight
+        );
+
         store.orders.push(order);
     } else {
         eprintln!("Order not completed.");
