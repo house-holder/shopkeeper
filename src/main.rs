@@ -277,11 +277,25 @@ fn main() -> io::Result<()> {
         cost_cents: 3895,
         weight: Grams(925),
     };
+    let item5 = Item {
+        name: "Flare seal, 2.025\" Garlock P/N 8179-36".to_string(),
+        id: 302871,
+        cost_cents: 1869,
+        weight: Grams(105),
+    };
+    let item6 = Item {
+        name: "Bolt, 0.75\", high-tension Gr8".to_string(),
+        id: 112055,
+        cost_cents: 319,
+        weight: Grams(9),
+    };
 
     store.stock(item1, 12);
     store.stock(item2, 8);
     store.stock(item3, 203);
     store.stock(item4, 2);
+    store.stock(item5, 9);
+    store.stock(item6, 34);
 
     while store.inventory.len() < 4 {
         while let Err(e) = store.create_stock() {
