@@ -1,5 +1,5 @@
-use std::io::{self, Write, Result};
 use std::collections::HashMap;
+use std::io::{self, Result, Write};
 
 use crate::domain::{Cents, Grams, Order, OrderLine, Store};
 
