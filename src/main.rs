@@ -39,6 +39,8 @@ fn main() -> io::Result<()> {
     store.stock(item3, 203);
     store.stock(item4, 2);
 
+    // testing comment for prompt
+
     while store.inventory_len() < 4 {
         while let Err(e) = ui::create_stock(&mut store) {
             eprintln!("create_stock failed: {e}");
